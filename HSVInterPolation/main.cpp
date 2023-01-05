@@ -1,6 +1,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <format>
 #include <algorithm>
 #include <array>
 #include <cstdlib>
@@ -51,8 +52,8 @@ float lastFrame = .0f;
 
 struct Vertex {
     glm::vec3 pos;
-    //glm::vec3 normal;
     glm::vec3 col;
+    glm::vec3 normal;
     //glm::vec2 texCoord;
 
     bool operator==(const Vertex& other) const {
@@ -68,6 +69,9 @@ struct Object {
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
     std::vector<uint32_t> windices;
+    glm::vec3 pos;
+    glm::vec3 scale;
+    int mode;
 };
 
 namespace std {
@@ -79,7 +83,7 @@ namespace std {
 }
 
 
-void loadModel(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, std::string model_path) {
+bool loadModel(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, std::string model_path) {
     tinyobj::ObjReaderConfig reader_config;
     reader_config.mtl_search_path = "./"; // Path to material files
 
@@ -89,7 +93,7 @@ void loadModel(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, st
         if (!reader.Error().empty()) {
             std::cerr << "TinyObjReader: " << reader.Error();
         }
-        exit(1);
+        return false;
     }
 
     if (!reader.Warning().empty()) {
@@ -117,12 +121,12 @@ void loadModel(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, st
                 vert.pos.z = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
                 
                 // Check if `normal_index` is zero or positive. negative = no normal data
-                /*
+                
                 if (idx.normal_index >= 0) {
                     vert.normal.x = attrib.normals[3 * size_t(idx.normal_index) + 0];
                     vert.normal.y = attrib.normals[3 * size_t(idx.normal_index) + 1];
                     vert.normal.z = attrib.normals[3 * size_t(idx.normal_index) + 2];
-                }*/
+                }
 
                 /*
                 // Check if `texcoord_index` is zero or positive. negative = no texcoord data
@@ -145,6 +149,7 @@ void loadModel(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, st
 
         }
     }
+    return true;
 }
 
 
@@ -207,50 +212,54 @@ void processInput(GLFWwindow* window)
 
 Object constructObj(std::string model_path) {
     Object obj{};
+    obj.scale = glm::vec3(1.0f, 1.0f, 1.0f);
     obj.model_path = model_path;
-    loadModel(obj.vertices, obj.indices, obj.model_path);
-    for (int i = 0; i < obj.indices.size(); i++) {
-        obj.windices.push_back(obj.indices[i]);
-        obj.windices.push_back(obj.indices[i + 1]);
-        obj.windices.push_back(obj.indices[i + 1]);
-        obj.windices.push_back(obj.indices[i + 2]);
-        obj.windices.push_back(obj.indices[i + 2]);
-        obj.windices.push_back(obj.indices[i]);
-        i += 2;
+    if (loadModel(obj.vertices, obj.indices, obj.model_path)) {
+
+
+
+        for (int i = 0; i < obj.indices.size(); i++) {
+            obj.windices.push_back(obj.indices[i]);
+            obj.windices.push_back(obj.indices[i + 1]);
+            obj.windices.push_back(obj.indices[i + 1]);
+            obj.windices.push_back(obj.indices[i + 2]);
+            obj.windices.push_back(obj.indices[i + 2]);
+            obj.windices.push_back(obj.indices[i]);
+            i += 2;
+        }
+        glGenVertexArrays(1, &obj.vao);
+        glGenBuffers(1, &obj.vbo);
+        glGenBuffers(1, &obj.ebo);
+
+        glBindVertexArray(obj.vao);
+        glBindBuffer(GL_ARRAY_BUFFER, obj.vbo);
+        glBufferData(GL_ARRAY_BUFFER, obj.vertices.size() * sizeof(Vertex), &obj.vertices[0], GL_DYNAMIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);//pos
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3 * sizeof(float)));//col
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(6 * sizeof(float)));//norm
+        glEnableVertexAttribArray(2);
+         //glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(9 * sizeof(float)));//texcoord
+         //glEnableVertexAttribArray(3);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj.ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, obj.indices.size() * sizeof(float), &obj.indices[0], GL_DYNAMIC_DRAW);
+
+        glGenVertexArrays(1, &obj.wvao);
+        glGenBuffers(1, &obj.wvbo);
+        glGenBuffers(1, &obj.webo);
+
+        glBindVertexArray(obj.wvao);
+        glBindBuffer(GL_ARRAY_BUFFER, obj.wvbo);
+        glBufferData(GL_ARRAY_BUFFER, obj.vertices.size() * sizeof(Vertex), &obj.vertices[0], GL_DYNAMIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);//pos
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3 * sizeof(float)));//col
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj.webo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, obj.windices.size() * sizeof(float), &obj.windices[0], GL_DYNAMIC_DRAW);
     }
-    glGenVertexArrays(1, &obj.vao);
-    glGenBuffers(1, &obj.vbo);
-    glGenBuffers(1, &obj.ebo);
-
-    glBindVertexArray(obj.vao);
-    glBindBuffer(GL_ARRAY_BUFFER, obj.vbo);
-    glBufferData(GL_ARRAY_BUFFER, obj.vertices.size() * sizeof(Vertex), &obj.vertices[0], GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);//pos
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3 * sizeof(float)));//col
-    glEnableVertexAttribArray(1);
-   // glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(6 * sizeof(float)));//col
-    //glEnableVertexAttribArray(2);
-    //glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(9 * sizeof(float)));//texcoord
-    //glEnableVertexAttribArray(3);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj.ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, obj.indices.size() * sizeof(float), &obj.indices[0], GL_DYNAMIC_DRAW);
-
-    glGenVertexArrays(1, &obj.wvao);
-    glGenBuffers(1, &obj.wvbo);
-    glGenBuffers(1, &obj.webo);
-
-    glBindVertexArray(obj.wvao);
-    glBindBuffer(GL_ARRAY_BUFFER, obj.wvbo);
-    glBufferData(GL_ARRAY_BUFFER, obj.vertices.size() * sizeof(Vertex), &obj.vertices[0], GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);//pos
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3 * sizeof(float)));//col
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj.webo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, obj.windices.size() * sizeof(float), &obj.windices[0], GL_DYNAMIC_DRAW);
-
     return obj;
 }
 
@@ -284,7 +293,9 @@ int main() {
     }
 
     std::vector<Object> objects;
-    objects.push_back(constructObj("C:\\Src\\meshes\\bunnyCol.obj"));
+    std::vector<Object> testTriangles;
+    testTriangles.push_back(constructObj("C:\\Src\\meshes\\plane.obj"));
+    objects.push_back(constructObj("C:\\Src\\meshes\\dome1.obj"));
 
     unsigned int VAO_plane;
     glGenVertexArrays(1, &VAO_plane);
@@ -355,8 +366,10 @@ int main() {
 
     int width, height;
     Shader rgbShader = Shader("C:\\Src\\shaders\\vertRGB.glsl", "C:\\Src\\shaders\\fragRGB.glsl");
+    Shader cvShader = Shader("C:\\Src\\shaders\\vertCV.glsl", "C:\\Src\\shaders\\fragCV.glsl");
     Shader hsvShader = Shader("C:\\Src\\shaders\\vertHSV.glsl", "C:\\Src\\shaders\\fragHSV.glsl");
     Shader lineshader = Shader("C:\\Src\\shaders\\vertCoss.glsl", "C:\\Src\\shaders\\fragCoss.glsl");
+    Shader uberColShader("C:\\Src\\shaders\\vertHSV.glsl", "C:\\Src\\shaders\\fragHSV.glsl");
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -381,7 +394,7 @@ int main() {
 
     float orthoScale = 10.0f;
     glm::vec3 lightPos = { 10.0f,10.f,10.f };
-    bool xz = true, yz = true, xy = true, abc = false, x = true, y = true, z = true, ax = true, grid = true, inc = false, inc2 = false;
+    bool xz = true, yz = true, xy = true, abc = false, x = true, y = true, z = true, ax = true, grid = true, inc = false, inc2 = false, wireframe = true;
     int config = 7, gridSize = 8;
     int ABC[3] = { 1,1,1 };
 
@@ -391,6 +404,20 @@ int main() {
     //ImGui::SetNextWindowViewport(viewport->ID);
     bool ortho = false;
     static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_PassthruCentralNode;
+    int objDel = 0;
+    static char objPathBuffer[32] = "C:\\Src\\meshes\\dome1.obj";
+    int modeN = 9;
+    std::string modes[] = {
+        "RGB",
+        "sRGB",
+        "CV",
+        "HSV",
+        "HSL",
+        "CIEXYZ",
+        "CIELAB",
+        "CIELUV",
+        "CIEHLC",
+    };
     while (!glfwWindowShouldClose(window))
     {
         // input
@@ -407,7 +434,7 @@ int main() {
 
         hsvShader.use();
         glm::mat4 view = glm::lookAt(camPos, camPos + camFront, camUp);
-        hsvShader.setMat4("view", view);
+        uberColShader.setMat4("view", view);
 
         glfwGetWindowSize(window, &width, &height);
 
@@ -416,35 +443,41 @@ int main() {
         if (ortho)
             projection = glm::ortho(-orthoScale * ratio, orthoScale * ratio, -orthoScale, orthoScale, -1000.0f, 1000.0f);
 
-        hsvShader.setMat4("projection", projection);
+        uberColShader.setMat4("projection", projection);
 
         glm::mat4 model = glm::mat4(1.0f);
-        hsvShader.setMat4("model", model);
+        uberColShader.setMat4("model", model);
 
-        for (Object& o : objects) {
-            glBindVertexArray(o.vao);
-            glDrawElements(GL_TRIANGLES, o.indices.size(), GL_UNSIGNED_INT, 0);
+        for (Object& o : testTriangles) {    
+            glm::mat4 m = glm::translate(model, o.pos);
+            m = glm::scale(m, o.scale);
+            for (int i = 0; i < modeN; i++) {
+                m = translate(m, glm::vec3(3.0f, 0.0f, 0.0f));
+                uberColShader.setMat4("model", m);
+                uberColShader.setInt("mode", i);
+                glBindVertexArray(o.vao);
+                glDrawElements(GL_TRIANGLES, o.indices.size(), GL_UNSIGNED_INT, 0);
+            }
         }
 
-        rgbShader.use();
-        rgbShader.setMat4("projection", projection);
-        rgbShader.setMat4("view", view);
-
-        model = glm::translate(model, glm::vec3(30.0f, 0.0f, 0.0f));
-        rgbShader.setMat4("model", model);
 
         for (Object& o : objects) {
-            glBindVertexArray(o.vao);
-            glDrawElements(GL_TRIANGLES, o.indices.size(), GL_UNSIGNED_INT, 0);
+            glm::mat4 m = glm::translate(model, o.pos);
+            m = glm::scale(m, o.scale);
+            for (int i = 0; i < modeN; i++) {
+                m = translate(m, glm::vec3(3.0f, 0.0f, 0.0f));
+                uberColShader.setMat4("model", m);
+                uberColShader.setInt("mode", i);
+                glBindVertexArray(o.vao);
+                glDrawElements(GL_TRIANGLES, o.indices.size(), GL_UNSIGNED_INT, 0);
+            }
         }
-
         model = glm::mat4(1.0f);
         lineshader.use();
         lineshader.setMat4("projection", projection);
         lineshader.setMat4("view", view);
         lineshader.setMat4("model", model);
         
-
         if (grid) {
             glBindVertexArray(VAO_grid);
             glDrawArrays(GL_LINES, 0, gridVertices.size());
@@ -453,20 +486,15 @@ int main() {
             glBindVertexArray(VAO_plane);
             glDrawArrays(GL_LINES, 0, 12);
         }
-
-        for (Object& o : objects) {
-            glBindVertexArray(o.wvao);
-            glDrawElements(GL_LINES, o.windices.size(), GL_UNSIGNED_INT, 0);
+        if (wireframe) {
+            for (Object& o : objects) {
+                glm::mat4 m = glm::translate(model, o.pos);
+                m = glm::scale(m, o.scale);
+                lineshader.setMat4("model", m);
+                glBindVertexArray(o.wvao);
+                glDrawElements(GL_LINES, o.windices.size(), GL_UNSIGNED_INT, 0);
+            }
         }
-
-        model = glm::translate(model, glm::vec3(30.0f, 0.0f, 0.0f));
-        lineshader.setMat4("model", model);
-
-        for (Object& o : objects) {
-            glBindVertexArray(o.wvao);
-            glDrawElements(GL_LINES, o.windices.size(), GL_UNSIGNED_INT, 0);
-        }
-
         //start of imgui init stuff
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -487,10 +515,40 @@ int main() {
             }
         }
         ImGui::Checkbox("Axis", &ax);
+        ImGui::Checkbox("Wireframe", &wireframe);
         if (ImGui::Button("Update Shaders")) {
             rgbShader = Shader("C:\\Src\\shaders\\vertRGB.glsl", "C:\\Src\\shaders\\fragRGB.glsl");
+            cvShader = Shader("C:\\Src\\shaders\\vertCV.glsl", "C:\\Src\\shaders\\fragCV.glsl");
             hsvShader = Shader("C:\\Src\\shaders\\vertHSV.glsl", "C:\\Src\\shaders\\fragHSV.glsl");
             lineshader = Shader("C:\\Src\\shaders\\vertCoss.glsl", "C:\\Src\\shaders\\fragCoss.glsl");
+            uberColShader = Shader("C:\\Src\\shaders\\vertHSV.glsl", "C:\\Src\\shaders\\fragHSV.glsl");
+        }
+        ImGui::End();
+        ImGui::Begin("Object H.");
+        if (ImGui::TreeNode("Obj Tree")) {
+            ImGui::InputText("Object Path", objPathBuffer, IM_ARRAYSIZE(objPathBuffer));
+            if (ImGui::Button("Add Object")) {
+                Object obj = constructObj(objPathBuffer);
+                if(!obj.vertices.empty())
+                    objects.push_back(obj);
+            }
+            for (int i = 0; i < modeN; i++) {
+                ImGui::Text((std::to_string(i) + ": " + modes[i]).c_str());
+            }
+            for (int i = 0; i < objects.size(); i++) {
+                if (ImGui::TreeNode((void*)(intptr_t)(i), "Object %d", i+1)) {
+                    ImGui::DragFloat3("Object Loc", &objects[i].pos[0], 0.01f, 0.01f);
+                    ImGui::DragFloat3("Object Scale", &objects[i].scale[0], 0.01f, 0.01f);
+                    ImGui::InputInt("Color Scheme", &objects[i].mode);
+                    ImGui::TreePop();
+                }
+
+            }
+            ImGui::InputInt("Obj No", &objDel);
+            if (ImGui::Button("Delete Obj")) {
+                objects.erase(objects.begin()+objDel - 1);
+            }
+            ImGui::TreePop();
         }
         ImGui::End();
         ImGui::Render();

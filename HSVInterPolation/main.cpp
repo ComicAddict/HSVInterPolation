@@ -71,6 +71,7 @@ struct Object {
     std::vector<uint32_t> windices;
     glm::vec3 pos;
     glm::vec3 scale;
+    float zAngle;
     int mode;
 };
 
@@ -294,8 +295,8 @@ int main() {
 
     std::vector<Object> objects;
     std::vector<Object> testTriangles;
-    testTriangles.push_back(constructObj("C:\\Src\\meshes\\plane.obj"));
     objects.push_back(constructObj("C:\\Src\\meshes\\dome1.obj"));
+    objects.push_back(constructObj("C:\\Src\\meshes\\plane.obj"));
 
     unsigned int VAO_plane;
     glGenVertexArrays(1, &VAO_plane);
@@ -448,28 +449,15 @@ int main() {
         glm::mat4 model = glm::mat4(1.0f);
         uberColShader.setMat4("model", model);
 
-        for (Object& o : testTriangles) {    
-            glm::mat4 m = glm::translate(model, o.pos);
-            m = glm::scale(m, o.scale);
-            for (int i = 0; i < modeN; i++) {
-                m = translate(m, glm::vec3(3.0f, 0.0f, 0.0f));
-                uberColShader.setMat4("model", m);
-                uberColShader.setInt("mode", i);
-                glBindVertexArray(o.vao);
-                glDrawElements(GL_TRIANGLES, o.indices.size(), GL_UNSIGNED_INT, 0);
-            }
-        }
-
-
         for (Object& o : objects) {
             glm::mat4 m = glm::translate(model, o.pos);
-            m = glm::scale(m, o.scale);
+            //m = glm::scale(m, o.scale);
             for (int i = 0; i < modeN; i++) {
-                m = translate(m, glm::vec3(3.0f, 0.0f, 0.0f));
-                uberColShader.setMat4("model", m);
+                uberColShader.setMat4("model", glm::rotate(glm::scale(m, o.scale), glm::radians(o.zAngle), glm::vec3(0.0, 0.0, 1.0)));
                 uberColShader.setInt("mode", i);
                 glBindVertexArray(o.vao);
                 glDrawElements(GL_TRIANGLES, o.indices.size(), GL_UNSIGNED_INT, 0);
+                m = translate(m, glm::vec3(3.0f, 0.0f, 0.0f));
             }
         }
         model = glm::mat4(1.0f);
@@ -489,10 +477,13 @@ int main() {
         if (wireframe) {
             for (Object& o : objects) {
                 glm::mat4 m = glm::translate(model, o.pos);
-                m = glm::scale(m, o.scale);
-                lineshader.setMat4("model", m);
-                glBindVertexArray(o.wvao);
-                glDrawElements(GL_LINES, o.windices.size(), GL_UNSIGNED_INT, 0);
+                //m = glm::scale(m, o.scale);
+                for (int i = 0; i < modeN; i++) {
+                    lineshader.setMat4("model", glm::rotate(glm::scale(m, o.scale),glm::radians(o.zAngle), glm::vec3(0.0, 0.0, 1.0)));
+                    glBindVertexArray(o.wvao);
+                    glDrawElements(GL_LINES, o.windices.size(), GL_UNSIGNED_INT, 0);
+                    m = translate(m, glm::vec3(3.0f, 0.0f, 0.0f));
+                }
             }
         }
         //start of imgui init stuff
@@ -503,6 +494,8 @@ int main() {
 
         ImGui::Begin("Render Settings");
         ImGui::DragFloat3("Light Pos", &lightPos[0], 0.05);
+        ImGui::DragFloat3("Cam Pos", &camPos[0], 0.05);
+        ImGui::DragFloat3("Cam View", &camFront[0], 0.05);
         ImGui::Checkbox("Orthographic", &ortho);
         if (ortho)
             ImGui::DragFloat("Orthographic Scale", &orthoScale, 0.05, 0.01f, 100.0f);
@@ -539,6 +532,7 @@ int main() {
                 if (ImGui::TreeNode((void*)(intptr_t)(i), "Object %d", i+1)) {
                     ImGui::DragFloat3("Object Loc", &objects[i].pos[0], 0.01f, 0.01f);
                     ImGui::DragFloat3("Object Scale", &objects[i].scale[0], 0.01f, 0.01f);
+                    ImGui::DragFloat("Z Angle", &objects[i].zAngle, 0.01f);
                     ImGui::InputInt("Color Scheme", &objects[i].mode);
                     ImGui::TreePop();
                 }

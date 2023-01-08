@@ -12,11 +12,19 @@ uniform mat4 model;
 
 out vec3 col;
 flat out int fmode;
+
 const float PI = 3.14159265359f;
 // standard illuminant D65
+/*
 const float XN = 95.0489f;
 const float YN = 100.0f;
 const float ZN = 108.8840f;
+*/
+
+// Open CV implementation
+const float XN = 0.950456;
+const float YN = 1.0;
+const float ZN = 1.088754;
 
 vec3 rgb2CIEXYZ(vec3 rgb){
 	mat3x3 C = mat3x3(	0.4124564, 0.3575761, 0.1804375,
@@ -34,11 +42,21 @@ vec3 CIEXYZ2rgb(vec3 xyz){
 	return rgb;
 }
 
+
 float trFuncLab(float a){
+
 	float delta = 6.0/29.0; 
 	if(a > pow(delta,3))
 		return pow(a,1.0/3.0);
 	return 4.0/29.0 + a / (3*pow(delta,2));
+	
+	//openCV implementation
+	/*
+	if(a > 0.008856){
+		return pow(a, 1.0/3.0);
+	}
+	return 7.787 * a + 16.0/116.0;
+	*/
 }
 
 float invFuncLab(float a){
@@ -46,22 +64,55 @@ float invFuncLab(float a){
 	if(a > pow(delta,3))
 		return pow(a,3);
 	return 3 * pow(delta,2) * (a - (4.0/29.0) );
+	
+	// openCV implementation
+	/*
+	if(a < 0.20689336){
+		return pow(a, 3);
+	}
+	return (a - (16.0/116.0)) / 7.887;
+	*/
 }
 
 vec3 CIEXYZ2CIELAB(vec3 xyz){
 	vec3 lab;
+	
 	lab.x = 116 * trFuncLab(xyz.y/YN) - 16.0;
 	lab.y = 500 * (trFuncLab(xyz.x/XN) - trFuncLab(xyz.y/YN));
 	lab.z = 200 * (trFuncLab(xyz.y/YN) - trFuncLab(xyz.z/ZN));
+	
+	//openCV Implementation
+	/*
+	if(xyz.y > 0.008856){
+		lab.x = 116.0 * pow(xyz.y, 1.0/3.0) - 16.0;
+	} else {
+		lab.x = 903.3 * xyz.y;
+	}
+	lab.y = 500 * (trFuncLab(xyz.x/XN) - trFuncLab(xyz.y/YN));
+	lab.z = 200 * (trFuncLab(xyz.y/YN) - trFuncLab(xyz.z/ZN));
+	*/
 	return lab;
 }
 
 vec3 CIELAB2CIEXYZ(vec3 lab){
 	// standard illuminant d65
 	vec3 xyz;
+	
 	xyz.x = XN * invFuncLab(((lab.x + 16.0)/116.0) + (lab.y/500.0));
 	xyz.y = YN * invFuncLab((lab.x + 16.0)/116.0);
 	xyz.z = ZN * invFuncLab(((lab.x + 16.0)/116.0) - (lab.z/200.0));
+	
+	//openCV implementation
+	/*
+	if(lab.x > 8){
+		xyz.y = pow((lab.x + 16.0) / 116.0f, 3.0);	
+	} else {
+		xyz.y = lab.x / 903.3f;	
+	}
+	
+	xyz.x = XN * invFuncLab((lab.x + 16.0) / 116.0f + (lab.y/500.0));
+	xyz.z = ZN * invFuncLab((lab.x + 16.0) / 116.0f - (lab.z/200.0));
+	*/
 	return xyz;
 }
 
@@ -79,7 +130,7 @@ vec3 rgb2hsv(vec3 rgb){
 	} else {
 		hsv.y = del / cmax;
 		if(cmax == rgb.x){
-			hsv.x = (rgb.g - rgb.b)/del;
+			hsv.x = mod((rgb.g - rgb.b)/del, 6);
 		} else if(cmax == rgb.y){
 			hsv.x = 2.0f + (rgb.b - rgb.r)/del;
 		} else if(cmax == rgb.z){
@@ -140,7 +191,7 @@ vec3 hsv2rgb(vec3 hsv){
 		rgb = vec3(cmin, cmax - (h - 3) * delta, cmax);
 	else if(h < 5)
 		rgb = vec3(cmin + (h - 4) * delta, cmin, cmax);
-	else if(h < 6)
+	else if(h <= 6)
 		rgb = vec3(cmax, cmin, cmax - (h - 5) * delta);
 	return rgb;
 }
@@ -301,6 +352,7 @@ vec3 rgb2HSL(vec3 rgb){
 vec3 HSL2rgb(vec3 hsl){
 	return hsv2rgb(HSL2HSV(hsl));
 }
+
 
 void main() {
 	fmode = mode;
